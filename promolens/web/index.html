@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PromoLens · 促销对照分析</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true"></div>
+    <div>
+      <div class="brand-name">PromoLens</div>
+      <div class="brand-sub">促销门店对照分析 · 假设明确的观察性比较</div>
+    </div>
+  </div>
+  <div class="chips" id="context-chips"></div>
+  <nav class="nav" role="tablist" aria-label="主导航">
+    <button role="tab" data-page="analysis" aria-selected="true">分析</button>
+    <button role="tab" data-page="compare" aria-selected="false">版本对比</button>
+    <button role="tab" data-page="data" aria-selected="false">数据与口径</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ============================ ANALYSIS ============================ -->
+  <section id="page-analysis">
+    <div class="layout">
+      <aside class="panel controls" aria-label="分析条件">
+        <div class="panel-head">
+          <h2>分析条件</h2>
+          <span class="hint">改动后需重算</span>
+        </div>
+        <div class="ctl-section">
+          <div class="ctl-label">对比方法 <span class="tip" title="不同方法用样本量交换可比性，结果不可混读">?</span></div>
+          <div class="method-list" id="method-list"></div>
+          <div id="method-params"></div>
+        </div>
+
+        <div class="ctl-section">
+          <div class="ctl-label">结果口径</div>
+          <div class="field">
+            <label for="refund-mode">退款处理</label>
+            <select id="refund-mode">
+              <option value="as_of_cutoff">只计退款截止日前到账</option>
+              <option value="final_observed">使用快照内全部已到账退款</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="threshold">每窗口最少有效订单</label>
+            <input id="threshold" type="number" min="1" max="1000" step="1" value="30">
+          </div>
+        </div>
+
+        <div class="ctl-section">
+          <div class="ctl-label">观察窗</div>
+          <div class="row2">
+            <div class="field"><label for="pre-start">期前开始</label><input id="pre-start" type="date"></div>
+            <div class="field"><label for="pre-end">期前结束</label><input id="pre-end" type="date"></div>
+            <div class="field"><label for="camp-start">活动开始</label><input id="camp-start" type="date"></div>
+            <div class="field"><label for="camp-end">活动结束</label><input id="camp-end" type="date"></div>
+          </div>
+          <div class="field">
+            <label for="refund-cutoff">退款截止（UTC）</label>
+            <input id="refund-cutoff" type="text" placeholder="2026-09-06T23:59:59Z">
+          </div>
+        </div>
+
+        <div class="ctl-section">
+          <div class="ctl-label">样本筛选</div>
+          <div class="field">
+            <label>区域（不选=全部）</label>
+            <div class="multi" id="filter-regions"></div>
+          </div>
+          <div class="field">
+            <label>业态（不选=全部）</label>
+            <div class="multi" id="filter-formats"></div>
+          </div>
+          <details class="advanced" id="rule-box">
+            <summary>曝光归属规则</summary>
+            <div class="field" style="margin-top:8px">
+              <label for="lookback">回看窗口（小时）</label>
+              <input id="lookback" type="number" min="1" max="720" step="1">
+            </div>
+            <div class="field">
+              <label>可归因订单状态</label>
+              <div class="checks" id="rule-statuses"></div>
+            </div>
+            <div class="field">
+              <label>曝光渠道</label>
+              <div class="multi" id="rule-channels"></div>
+            </div>
+            <div class="field">
+              <label>曝光类型</label>
+              <div class="multi" id="rule-kinds"></div>
+            </div>
+            <div class="checks">
+              <label class="check"><input type="checkbox" id="rule-same-store"> 仅同门店曝光</label>
+              <label class="check"><input type="checkbox" id="rule-post"> 只收订单前的曝光</label>
+            </div>
+            <p style="font-size:11px;color:var(--muted);margin:8px 0 0">改动会创建新的规则版本；旧报告仍绑定旧版本值。</p>
+          </details>
+          <details class="advanced">
+            <summary>已排除的门店</summary>
+            <div id="manual-excludes" style="margin-top:8px;font-size:11.5px;color:var(--muted)">在上方“门店明细”中点选门店后可手动排除。</div>
+          </details>
+        </div>
+
+        <div class="ctl-section">
+          <div class="actions">
+            <button class="btn primary" id="run-btn">重算并新建版本</button>
+            <button class="btn ghost small" id="reset-btn">恢复默认</button>
+          </div>
+          <div id="input-digest-hint" class="mono" style="color:var(--muted);margin-top:8px"></div>
+        </div>
+      </aside>
+
+      <div class="results" id="results">
+        <div class="empty" id="no-report">
+          <h3>还没有报告</h3>
+          <p>左侧确认条件后点“重算并新建版本”。报告会冻结当前数据快照、规则、观察窗、方法与参数。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================= COMPARE ============================= -->
+  <section id="page-compare" hidden>
+    <div class="page-head">
+      <h1>版本对比</h1>
+      <div class="sub">同一组合的不同版本，或不同方法产生的报告；差异必须能追溯到输入与方法版本。</div>
+    </div>
+    <div id="compare-body"></div>
+  </section>
+
+  <!-- ============================== DATA =============================== -->
+  <section id="page-data" hidden>
+    <div class="page-head">
+      <h1>数据与口径</h1>
+      <div class="sub">接入批次、冻结快照、规则/观察窗版本与报告状态。</div>
+    </div>
+    <div id="data-body"></div>
+  </section>
+</main>
+
+<div class="drawer-scrim" id="drawer-scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true" aria-label="门店明细">
+  <div class="drawer-head">
+    <div>
+      <h2 id="drawer-title">门店明细</h2>
+      <div class="sub" id="drawer-sub"></div>
+    </div>
+    <button class="drawer-close" id="drawer-close" aria-label="关闭">×</button>
+  </div>
+  <div class="drawer-body" id="drawer-body"></div>
+</aside>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="/app.js"></script>
+<script src="/views.js"></script>
+</body>
+</html>
